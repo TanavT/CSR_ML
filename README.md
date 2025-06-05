@@ -1,1 +1,3 @@
 # PDFtoJSON
+
+dependency: pymupdf
