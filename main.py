@@ -1,70 +1,41 @@
-import pymupdf
-import json
 import os
+from parsers.clinicaltrials_parser import parse_clinical_trials_json_folder
+from embeddings.embedding_index import EmbeddingIndexer
+from qa_model.local_llm import LocalLLM
 
+def main():
+    input_folder = os.path.join(os.getcwd(), "data/clinical_trials_json")
+    index_folder = os.path.join(os.getcwd(), "data/index")
+    os.makedirs(index_folder, exist_ok=True)
 
-def insert_section(section_stack, level, title, content):
-    """Inserts a section at the correct level in the nested dictionary."""
-    new_section = {"_content": content}
-    # Trim stack to current level
-    section_stack = section_stack[:level]
-    # Insert into correct parent
-    parent = section_stack[-1] if section_stack else section_tree
-    parent[title] = new_section
-    section_stack.append(new_section)
-    return section_stack
+    print("Parsing clinical trial JSON files...")
+    documents = parse_clinical_trials_json_folder(input_folder)
+    filenames, texts = zip(*documents)
 
+    print(f"Building embedding index on {len(texts)} documents...")
+    indexer = EmbeddingIndexer()
+    indexer.build_index(texts)
+    indexer.save_index(os.path.join(index_folder, "faiss.index"), os.path.join(index_folder, "texts.pkl"))
 
-def extract_sections_from_toc(pdf_path):
-    doc = pymupdf.open(pdf_path)
-    toc = doc.get_toc(simple=True)  # (level, title, page_num)
+    print("Loading model...")
+    llm = LocalLLM()
 
-    if not toc:
-        print(f"No Table of Contents found in {pdf_path}")
-        return {}
+    query = "What is the objective of the study?"
+    print(f"Searching for relevant documents for query: {query}")
+    results = indexer.search(query, top_k=3)
+    print("Generating answer...")
 
-    global section_tree
-    section_tree = {}
-    section_stack = [section_tree]
+    combined_context = "\n\n".join([r[0] for r in results])
+    # print(combined_context)
+    full_prompt = (
+        "Use the following context to answer the question.\n\n"
+        f"{combined_context}\n\n"
+        f"Question: {query}\nAnswer:"
+    )
+    answer = llm.answer(full_prompt)
 
-    for i, (level, title, page_num) in enumerate(toc):
-        title = title.strip()
-        start_page = page_num - 1
-        end_page = toc[i + 1][2] - 1 if i + 1 < len(toc) else len(doc)
-
-        if start_page == end_page:
-            end_page += 1
-
-        content = ""
-        for p in range(start_page, end_page):
-            content += doc[p].get_text()
-
-        section_stack = insert_section(section_stack, level, title, content.strip())
-
-    return section_tree
-
-
-def process_all_pdfs(input_folder_process, output_folder_process):
-    os.makedirs(output_folder_process, exist_ok=True)
-
-    for filename in os.listdir(input_folder_process):
-        if filename.lower().endswith(".pdf"):
-            pdf_path = os.path.join(input_folder_process, filename)
-            print(f"Processing {filename}...")
-
-            structured = extract_sections_from_toc(pdf_path)
-
-            json_filename = os.path.splitext(filename)[0] + ".json"
-            json_path = os.path.join(output_folder_process, json_filename)
-
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(structured, f, indent=2, ensure_ascii=False)
-
-            print(f"Saved: {json_path}")
-
+    print("\n--- Answer ---")
+    print(answer)
 
 if __name__ == "__main__":
-    input_dir = os.path.join(os.getcwd(), "reports")
-    output_dir = os.path.join(os.getcwd(), "output")
-
-    process_all_pdfs(input_dir, output_dir)
+    main()
