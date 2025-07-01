@@ -1,36 +1,57 @@
 import json
 import os
+import fitz  # PyMuPDF
+from textwrap import wrap
 
+def extract_text_from_pdf(pdf_path):
+    doc = fitz.open(pdf_path)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
 
-def parse_clinical_trials_json_folder(input_folder):
-    all_texts = []
+def chunk_text_with_context(text: str, max_tokens: int = 300, overlap: int = 50):
+    """Chunk text with context-aware paragraph windows."""
+    try:
+        from transformers import AutoTokenizer
+    except ImportError:
+        raise RuntimeError("transformers library is required for token-aware chunking")
+
+    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+
+    # 1. Paragraph splitting
+    paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+    chunks = []
+
+    for i in range(len(paragraphs)):
+        # Current + optional context before/after
+        context_window = [
+            paragraphs[i - 1] if i - 1 >= 0 else "",
+            paragraphs[i],
+            paragraphs[i + 1] if i + 1 < len(paragraphs) else ""
+        ]
+        combined = " ".join([p for p in context_window if p])
+
+        # Tokenize and truncate if too long
+        tokens = tokenizer.tokenize(combined)
+        if len(tokens) > max_tokens:
+            token_ids = tokenizer.convert_tokens_to_ids(tokens[:max_tokens])
+            combined = tokenizer.decode(token_ids, skip_special_tokens=True)
+
+        chunks.append(combined)
+
+    return chunks
+
+def parse_pdf_folder_with_chunking(input_folder):
+    all_chunks = []
     for fname in os.listdir(input_folder):
-        if fname.lower().endswith(".json"):
+        if fname.lower().endswith(".pdf"):
             path = os.path.join(input_folder, fname)
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            text = flatten_clinical_trials_json(data)
-            all_texts.append((fname, text))
-    return all_texts
-
-
-def flatten_clinical_trials_json(data):
-    parts = []
-    protocol = data.get("protocolSection", {})
-    id_mod = protocol.get("identificationModule", {})
-    brief_title = id_mod.get("briefTitle", "")
-    official_title = id_mod.get("officialTitle", "")
-    parts.append(brief_title)
-    parts.append(official_title)
-
-    desc_mod = protocol.get("descriptionModule", {})
-    brief_summary = desc_mod.get("briefSummary", "")
-    parts.append(brief_summary)
-
-    outcomes_mod = protocol.get("outcomesModule", {})
-    primary_outcomes = outcomes_mod.get("primaryOutcomes", [])
-    for outcome in primary_outcomes:
-        parts.append(outcome.get("measure", ""))
-        parts.append(outcome.get("description", ""))
-
-    return "\n\n".join([p for p in parts if p])
+            try:
+                full_text = extract_text_from_pdf(path)
+                chunks = chunk_text_with_context(full_text)
+                for chunk in chunks:
+                    all_chunks.append((fname, chunk))  # store filename with each chunk
+            except Exception as e:
+                print(f"Failed to parse {fname}: {e}")
+    return all_chunks

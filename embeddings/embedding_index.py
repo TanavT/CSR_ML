@@ -2,22 +2,26 @@ from sentence_transformers import SentenceTransformer
 import faiss
 import pickle
 
-
 class EmbeddingIndexer:
     def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2"):
         self.model = SentenceTransformer(model_name)
         self.index = None
-        self.texts = []
+        self.texts = []  # will store tuples (filename, chunk_text)
 
-    def build_index(self, texts):
-        # texts: list of strings
-        self.texts = texts
-        embeddings = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=True)
-        dim = embeddings.shape[1]
-
-        self.index = faiss.IndexFlatIP(dim)  # Cosine similarity (inner product on normalized vectors)
+    def build_index(self, texts_with_metadata):
+        self.texts = texts_with_metadata
+        texts_only = [t[1] for t in texts_with_metadata]  # Just the chunk text
+        embeddings = self.model.encode(texts_only, convert_to_numpy=True, show_progress_bar=True)
         faiss.normalize_L2(embeddings)
+        self.index = faiss.IndexFlatIP(embeddings.shape[1])
         self.index.add(embeddings)
+
+    def search(self, query, top_k=5):
+        query_emb = self.model.encode([query], convert_to_numpy=True)
+        faiss.normalize_L2(query_emb)
+        distances, indices = self.index.search(query_emb, top_k)
+        results = [(self.texts[i], float(distances[0][idx])) for idx, i in enumerate(indices[0])]
+        return results
 
     def save_index(self, index_path, texts_path):
         faiss.write_index(self.index, index_path)
@@ -29,9 +33,3 @@ class EmbeddingIndexer:
         with open(texts_path, "rb") as f:
             self.texts = pickle.load(f)
 
-    def search(self, query, top_k=5):
-        query_emb = self.model.encode([query], convert_to_numpy=True)
-        faiss.normalize_L2(query_emb)
-        distances, indices = self.index.search(query_emb, top_k)
-        results = [(self.texts[i], float(distances[0][idx])) for idx, i in enumerate(indices[0])]
-        return results

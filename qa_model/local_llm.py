@@ -1,46 +1,33 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
 
 class LocalLLM:
-    def __init__(self, device=None):
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.model_name = "EleutherAI/gpt-neo-1.3B"
+    """
+    GPT-Neo 1.3 B wrapper that:
+    """
 
-        print(f"Loading model {self.model_name} on {self.device}...")
+    def __init__(self, model_name: str = "EleutherAI/gpt-neo-1.3B"):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Loading {model_name} on {self.device} …")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer.pad_token = self.tokenizer.eos_token  # fix padding warning
+        self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
+        self.max_ctx = self.model.config.max_position_embeddings  # 2048
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name).to(self.device)
-
-        self.pipeline = pipeline(
-            "text-generation",
-            model=self.model,
-            tokenizer=self.tokenizer,
-            device=0 if self.device == "cuda" else -1,
-            pad_token_id=self.tokenizer.eos_token_id,
-        )
-        self.max_length = 1024
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-
-    def answer(self, prompt):
-        max_len = self.model.config.max_position_embeddings
-        max_new_tokens = 100
-
-        max_input_length = max_len - max_new_tokens
-
-        inputs = self.tokenizer(
+    def answer(self, prompt: str, max_new_tokens: int = 120) -> str:
+        max_input = self.max_ctx - max_new_tokens
+        toks = self.tokenizer(
             prompt,
             return_tensors="pt",
             truncation=True,
-            max_length=max_input_length,
+            max_length=max_input,
             padding=True,
         )
-        input_ids = inputs["input_ids"].to(self.device)
-        attention_mask = inputs["attention_mask"].to(self.device)
+        toks = {k: v.to(self.device) for k, v in toks.items()}
 
-        outputs = self.model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
+        out = self.model.generate(
+            **toks,
             max_new_tokens=max_new_tokens,
             do_sample=True,
             temperature=0.7,
@@ -48,6 +35,6 @@ class LocalLLM:
             eos_token_id=self.tokenizer.eos_token_id,
         )
 
-        generated_tokens = outputs[0][input_ids.shape[-1]:]
-        answer = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
-        return answer
+        gen_only = out[0][toks["input_ids"].shape[-1]:]
+        return self.tokenizer.decode(gen_only, skip_special_tokens=True).strip()
+
