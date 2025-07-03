@@ -4,6 +4,8 @@ from parsers.clinicaltrials_parser import parse_pdf_folder_with_chunking
 from embeddings.embedding_index import EmbeddingIndexer
 from qa_model.local_llm import LocalLLM
 
+
+
 def main():
     # print("CUDA available:", torch.cuda.is_available())
     # if torch.cuda.is_available():
@@ -14,8 +16,8 @@ def main():
     os.makedirs(index_folder, exist_ok=True)
 
     print("Parsing clinical study reports...")
-    documents = parse_pdf_folder_with_chunking(input_folder)
-    texts = [chunk for _, chunk in documents]
+    texts = parse_pdf_folder_with_chunking(input_folder)
+    # texts = [chunk for _, chunk in documents]
 
     print(f"Building embedding index on {len(texts)} chunks...")
     indexer = EmbeddingIndexer()
@@ -25,7 +27,7 @@ def main():
     print("Loading model...")
     llm = LocalLLM()
 
-    query = ("what is the objective of the study?")
+    query = ("What is the control group?")
     print(f"Searching for relevant chunks for query: {query}")
     results = indexer.search(query, top_k=5)
     print("Generating answer...")

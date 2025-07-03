@@ -10,8 +10,7 @@ class EmbeddingIndexer:
 
     def build_index(self, texts_with_metadata):
         self.texts = texts_with_metadata
-        texts_only = [t[1] for t in texts_with_metadata]  # Just the chunk text
-        embeddings = self.model.encode(texts_only, convert_to_numpy=True, show_progress_bar=True)
+        embeddings = self.model.encode(self.texts, convert_to_numpy=True, show_progress_bar=True)
         faiss.normalize_L2(embeddings)
         self.index = faiss.IndexFlatIP(embeddings.shape[1])
         self.index.add(embeddings)
