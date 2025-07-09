@@ -22,13 +22,13 @@ class EmbeddingIndexer:
         results = [(self.texts[i], float(distances[0][idx])) for idx, i in enumerate(indices[0])]
         return results
 
-    def save_index(self, index_path, texts_path):
-        faiss.write_index(self.index, index_path)
-        with open(texts_path, "wb") as f:
-            pickle.dump(self.texts, f)
-
-    def load_index(self, index_path, texts_path):
-        self.index = faiss.read_index(index_path)
-        with open(texts_path, "rb") as f:
-            self.texts = pickle.load(f)
+    # def save_index(self, index_path, texts_path):
+    #     faiss.write_index(self.index, index_path)
+    #     with open(texts_path, "wb") as f:
+    #         pickle.dump(self.texts, f)
+    #
+    # def load_index(self, index_path, texts_path):
+    #     self.index = faiss.read_index(index_path)
+    #     with open(texts_path, "rb") as f:
+    #         self.texts = pickle.load(f)
 

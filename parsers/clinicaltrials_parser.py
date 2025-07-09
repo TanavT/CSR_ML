@@ -22,8 +22,10 @@ from transformers import AutoTokenizer
 def extract_text_from_pdf_and_chunk_docling(pdf_path):
     converter = DocumentConverter()
     model_id = "sentence-transformers/all-MiniLM-L6-v2"
+    max_tokens = 300
     tokenizer = HuggingFaceTokenizer(
-        tokenizer=AutoTokenizer.from_pretrained(model_id)
+        tokenizer=AutoTokenizer.from_pretrained(model_id),
+        max_tokens=max_tokens,
     )
     chunker = HybridChunker(
         tokenizer=tokenizer,

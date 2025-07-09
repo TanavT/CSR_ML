@@ -3,7 +3,7 @@ import torch
 from parsers.clinicaltrials_parser import parse_pdf_folder_with_chunking
 from embeddings.embedding_index import EmbeddingIndexer
 from qa_model.local_llm import LocalLLM
-
+import re
 
 
 def main():
@@ -22,14 +22,14 @@ def main():
     print(f"Building embedding index on {len(texts)} chunks...")
     indexer = EmbeddingIndexer()
     indexer.build_index(texts)
-    indexer.save_index(os.path.join(index_folder, "faiss.index"), os.path.join(index_folder, "texts.pkl"))
+    # indexer.save_index(os.path.join(index_folder, "faiss.index"), os.path.join(index_folder, "texts.pkl"))
 
     print("Loading model...")
     llm = LocalLLM()
 
-    query = ("What is the control group?")
+    query = ("Who are the researchers conducting this study? Give me their names")
     print(f"Searching for relevant chunks for query: {query}")
-    results = indexer.search(query, top_k=5)
+    results = indexer.search(query, top_k=20)
     print("Generating answer...")
 
     combined_context = "\n\n".join([r[0] for r in results])
@@ -43,9 +43,13 @@ def main():
     print("\n--- Prompt ---")
     print(full_prompt)
     answer = llm.answer(full_prompt)
-
+    match = re.search(r"\b\w+:", answer)
+    if match:
+        answer = answer[:match.start()].strip()
+    answer = answer.strip()
     print("\n--- Answer ---")
     print(answer)
+
 
 if __name__ == "__main__":
     main()
