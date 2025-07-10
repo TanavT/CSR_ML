@@ -21,8 +21,8 @@ from transformers import AutoTokenizer
 
 def extract_text_from_pdf_and_chunk_docling(pdf_path):
     converter = DocumentConverter()
-    model_id = "sentence-transformers/all-MiniLM-L6-v2"
-    max_tokens = 300
+    model_id = "pritamdeka/BioBERT-mnli-snli-scinli-scitail-mednli-stsb"
+    max_tokens = 150
     tokenizer = HuggingFaceTokenizer(
         tokenizer=AutoTokenizer.from_pretrained(model_id),
         max_tokens=max_tokens,
@@ -37,11 +37,20 @@ def extract_text_from_pdf_and_chunk_docling(pdf_path):
     for i, chunk in enumerate(chunk_iter):
         # print(f"=== {i} ===")
         # print(f"chunk.text:\n{f'{chunk.text[:300]}…'!r}")
-        enriched_text = chunker.contextualize(chunk=chunk)
-        chunks.append(enriched_text)
+        enriched_text = format_chunk_with_section(chunker.contextualize(chunk=chunk))
         # print(f"chunker.contextualize(chunk):\n{f'{enriched_text[:300]}…'!r}")
+        chunks.append(enriched_text)
     return chunks
 
+def format_chunk_with_section(chunk: str) -> str:
+    lines = chunk.strip().split('\n', 1)
+    if len(lines) == 2:
+        section_title = lines[0].strip()
+        content = lines[1].strip()
+        return f"[Title of section: {section_title}]\n{content}"
+    else:
+        # just in case, shouldn't trigger
+        return f"[Title of section: {lines[0].strip()}]"
 
 # def chunk_text_with_context(text: str, max_tokens: int = 300):
 #     """deprecated: Chunk text with context-aware paragraph windows."""

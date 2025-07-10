@@ -6,6 +6,13 @@ from qa_model.local_llm import LocalLLM
 import re
 
 
+def cut_runoff_questions(answer:str) -> str:
+    match = re.search(r"\b\w+:", answer)
+    if match:
+        return answer[:match.start()].strip()
+    return answer.strip()
+
+
 def main():
     # print("CUDA available:", torch.cuda.is_available())
     # if torch.cuda.is_available():
@@ -27,9 +34,9 @@ def main():
     print("Loading model...")
     llm = LocalLLM()
 
-    query = ("Who are the researchers conducting this study? Give me their names")
+    query = ("Who is conducting the study, as in what researchers and what university?")
     print(f"Searching for relevant chunks for query: {query}")
-    results = indexer.search(query, top_k=20)
+    results = indexer.search(query, top_k=5)
     print("Generating answer...")
 
     combined_context = "\n\n".join([r[0] for r in results])
@@ -43,10 +50,7 @@ def main():
     print("\n--- Prompt ---")
     print(full_prompt)
     answer = llm.answer(full_prompt)
-    match = re.search(r"\b\w+:", answer)
-    if match:
-        answer = answer[:match.start()].strip()
-    answer = answer.strip()
+    answer = cut_runoff_questions(answer)
     print("\n--- Answer ---")
     print(answer)
 
