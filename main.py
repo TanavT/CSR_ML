@@ -24,17 +24,15 @@ def main():
 
     print("Parsing clinical study reports...")
     texts = parse_pdf_folder_with_chunking(input_folder)
-    # texts = [chunk for _, chunk in documents]
 
     print(f"Building embedding index on {len(texts)} chunks...")
     indexer = EmbeddingIndexer()
     indexer.build_index(texts)
-    # indexer.save_index(os.path.join(index_folder, "faiss.index"), os.path.join(index_folder, "texts.pkl"))
 
     print("Loading model...")
     llm = LocalLLM()
 
-    query = ("Who is conducting the study, as in what researchers and what university?")
+    query = ("What are the inclusion criteria")
     print(f"Searching for relevant chunks for query: {query}")
     results = indexer.search(query, top_k=5)
     print("Generating answer...")
@@ -45,10 +43,10 @@ def main():
         f"{combined_context}\n\n"
         f"Question: {query}\nAnswer:"
     )
-    print("\n--- Results ---")
-    print(results)
-    print("\n--- Prompt ---")
-    print(full_prompt)
+    # print("\n--- Results with Cosine Similarity---")
+    # print(results)
+    print("\n--- Context Given ---")
+    print(combined_context)
     answer = llm.answer(full_prompt)
     answer = cut_runoff_questions(answer)
     print("\n--- Answer ---")
